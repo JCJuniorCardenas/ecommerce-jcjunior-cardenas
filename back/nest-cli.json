@@ -1,0 +1,21 @@
+{
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "monorepo": false,
+  "root": ".",
+  "compilerOptions": {
+    "plugins": ["@nestjs/swagger/plugin"],
+    "tsConfigPath": "tsconfig.json"
+  },
+  "projects": {
+    "default": {
+      "type": "application",
+      "root": "src",
+      "entryFile": "main",
+      "sourceRoot": "src",
+      "compilerOptions": {
+        "assets": ["generated/prisma/**/*"]
+      }
+    }
+  }
+}
