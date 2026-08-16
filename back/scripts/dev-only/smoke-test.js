@@ -1,3 +1,6 @@
+// DEV ONLY: NUNCA ejecutar este script contra la base de datos de producción.
+// Crea y modifica usuarios, categorías, productos y pedidos de prueba.
+
 const { PrismaClient } = require('@prisma/client');
 
 const BASE_URL = 'http://localhost:3000';

@@ -30,46 +30,58 @@ export default function RegisterPage() {
   return (
     <div>
       <Navbar />
-      <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-3xl bg-white p-8 shadow-sm">
-          <h1 className="text-3xl font-semibold text-slate-900">Crear cuenta</h1>
-          <p className="mt-2 text-slate-600">Regístrate para comenzar a comprar en la tienda.</p>
+      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-8 border-2 border-line bg-paper-soft p-6 shadow-editorial lg:grid-cols-[1fr_0.9fr] lg:p-10">
+          <section className="flex flex-col justify-between border border-line bg-panel p-8 text-ink">
+            <div className="space-y-4">
+              <p className="text-xs uppercase tracking-[0.35em] text-terracotta">Jamby members</p>
+              <h1 className="font-display text-6xl leading-[0.9]">Sumate al crew.</h1>
+              <p className="max-w-md text-sm leading-7 text-muted">
+                Creá tu cuenta para comprar sneakers, guardar pedidos y entrar primero a nuevos lanzamientos.
+              </p>
+            </div>
+          </section>
+
+          <div className="border border-line bg-panel p-8">
+          <h2 className="font-display text-4xl text-ink">Crear cuenta</h2>
+          <p className="mt-2 text-muted">Regístrate para comenzar a comprar en la tienda.</p>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Email</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-muted">Email</span>
                 <input
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-900 focus:bg-white"
+                  className="mt-2 w-full border border-line bg-paper px-4 py-3 text-ink outline-none transition focus:border-terracotta"
                 />
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Contraseña</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-muted">Contraseña</span>
                 <input
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-slate-900 focus:bg-white"
+                  className="mt-2 w-full border border-line bg-paper px-4 py-3 text-ink outline-none transition focus:border-terracotta"
                 />
               </label>
             </div>
 
-            {error ? <div className="rounded-2xl bg-rose-50 p-4 text-rose-700">{error}</div> : null}
+            {error ? <div className="border border-[#7a1e26] bg-[#2a1014] p-4 text-[#ff8b95]">{error}</div> : null}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full border border-[#0b0d0f] bg-terracotta px-5 py-3 text-sm font-bold uppercase tracking-[0.24em] text-[#0b0d0f] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Procesando...' : 'Registrar'}
             </button>
           </form>
+          </div>
         </div>
       </main>
     </div>

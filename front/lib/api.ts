@@ -1,3 +1,5 @@
+import { clearSession, getSessionToken, redirectToLogin } from './session';
+
 const API_BASE = '/api';
 
 export type Category = {
@@ -41,8 +43,47 @@ export async function getProducts(params: {
 
 export async function getProduct(id: number): Promise<Product> {
   const res = await fetch(`${API_BASE}/products/${id}`);
-  if (!res.ok) throw new Error('No se pudo cargar el producto');
+  if (!res.ok) {
+    const errorMessage = await extractBackendMessage(res);
+    const error = new Error(errorMessage) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
+  }
   return res.json();
+}
+
+export async function fetchWithAuth(path: string, init?: RequestInit) {
+  const token = getSessionToken();
+
+  if (!token) {
+    console.error('[fetchWithAuth] no hay token; redirigiendo a login', { path });
+    redirectToLogin('auth-required');
+    throw new Error('Debes iniciar sesión para continuar');
+  }
+
+  const headers = new Headers(init?.headers ?? {});
+  headers.set('Authorization', `Bearer ${token}`);
+
+  let res: Response;
+  try {
+    console.log('[fetchWithAuth] ejecutando petición', { path, method: init?.method ?? 'GET' });
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers,
+    });
+  } catch (error) {
+    console.error('[fetchWithAuth] error de red o fetch', { path, error });
+    throw new Error('No se pudo conectar con el servidor');
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    console.error('[fetchWithAuth] sesión rechazada por backend', { path, status: res.status });
+    clearSession();
+    redirectToLogin('session-expired');
+    throw new Error('Tu sesión expiró, volvé a iniciar sesión');
+  }
+
+  return res;
 }
 
 async function extractBackendMessage(res: Response) {

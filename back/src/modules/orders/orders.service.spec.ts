@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { OrdersService } from './orders.service';
 
 describe('OrdersService', () => {
@@ -22,6 +23,7 @@ describe('OrdersService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -33,6 +35,7 @@ describe('OrdersService', () => {
     mockPrisma.order.create.mockReset();
     mockPrisma.order.findMany.mockReset();
     mockPrisma.order.findUnique.mockReset();
+    mockPrisma.order.update.mockReset();
     mockPrisma.$transaction.mockReset();
     mockPrisma.$transaction.mockImplementation(async (callback: any) => callback(mockPrisma));
     service = new OrdersService(mockPrisma as any);
@@ -51,6 +54,29 @@ describe('OrdersService', () => {
     expect(mockPrisma.product.updateMany).toHaveBeenCalledWith({
       where: { id: 1, stock: { gte: 2 } },
       data: { stock: { decrement: 2 } },
+    });
+  });
+
+  it('should cancel expired pending orders and restore stock', async () => {
+    const expiredOrder = {
+      id: 7,
+      status: 'PENDING',
+      items: [{ productId: 1, quantity: 2 }],
+    };
+    mockPrisma.order.findMany.mockResolvedValue([expiredOrder]);
+    mockPrisma.product.update.mockResolvedValue({ ...mockProduct, stock: 7 });
+    mockPrisma.order.update.mockResolvedValue({ ...expiredOrder, status: 'CANCELED' });
+
+    const result = await service.cancelExpiredPendingOrders();
+
+    expect(result).toEqual({ canceledCount: 1 });
+    expect(mockPrisma.product.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { stock: { increment: 2 } },
+    });
+    expect(mockPrisma.order.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: { status: 'CANCELED' },
     });
   });
 
@@ -98,6 +124,100 @@ describe('OrdersService', () => {
         },
       },
     });
+  });
+
+  it('should confirm payment for the order owner', async () => {
+    mockPrisma.order.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 1,
+      status: OrderStatus.PENDING,
+    });
+    mockPrisma.order.update.mockResolvedValue({
+      ...mockOrder,
+      status: OrderStatus.PROCESSING,
+    });
+
+    const result = await service.confirmPayment({ id: 1 } as any, 1);
+
+    expect(result.status).toBe(OrderStatus.PROCESSING);
+    expect(mockPrisma.order.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { status: OrderStatus.PROCESSING },
+      include: {
+        items: {
+          include: { product: true },
+        },
+      },
+    });
+  });
+
+  it('should reject payment confirmation from a non-owner', async () => {
+    mockPrisma.order.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 1,
+      status: OrderStatus.PENDING,
+    });
+
+    await expect(service.confirmPayment({ id: 2 } as any, 1)).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it('should reject payment confirmation when the order is no longer pending', async () => {
+    mockPrisma.order.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 1,
+      status: OrderStatus.PROCESSING,
+    });
+
+    await expect(service.confirmPayment({ id: 1 } as any, 1))
+      .rejects.toThrow('Esta orden ya no está pendiente de pago');
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it('should update a valid order status transition', async () => {
+    mockPrisma.order.findUnique.mockResolvedValue({
+      id: 1,
+      status: OrderStatus.PENDING,
+    });
+    mockPrisma.order.update.mockResolvedValue({
+      ...mockOrder,
+      status: OrderStatus.PROCESSING,
+    });
+
+    const result = await service.updateStatus(1, OrderStatus.PROCESSING);
+
+    expect(result.status).toBe(OrderStatus.PROCESSING);
+    expect(mockPrisma.order.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { status: OrderStatus.PROCESSING },
+      include: {
+        items: {
+          include: { product: true },
+        },
+      },
+    });
+  });
+
+  it('should reject an invalid order status transition', async () => {
+    mockPrisma.order.findUnique.mockResolvedValue({
+      id: 1,
+      status: OrderStatus.PENDING,
+    });
+
+    await expect(service.updateStatus(1, OrderStatus.DELIVERED))
+      .rejects.toThrow('No se puede pasar de PENDING a DELIVERED directamente');
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
+  });
+
+  it('should reject changes from a terminal order status', async () => {
+    mockPrisma.order.findUnique.mockResolvedValue({
+      id: 1,
+      status: OrderStatus.DELIVERED,
+    });
+
+    await expect(service.updateStatus(1, OrderStatus.CANCELED))
+      .rejects.toThrow('No se puede pasar de DELIVERED a CANCELED directamente');
+    expect(mockPrisma.order.update).not.toHaveBeenCalled();
   });
 
   it('should find all orders for admin', async () => {

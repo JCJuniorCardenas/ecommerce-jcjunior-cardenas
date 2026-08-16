@@ -12,7 +12,7 @@ import { MailModule } from '../mail/mail.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService): JwtModuleOptions => {
-        const secret = configService.get<string>('JWT_SECRET') || '';
+        const secret = configService.getOrThrow<string>('JWT_SECRET');
         const expiresIn = configService.get<string>('JWT_EXPIRATION') || '3600s';
 
         return {

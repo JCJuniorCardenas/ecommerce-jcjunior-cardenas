@@ -15,10 +15,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import fileType from 'file-type';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -31,16 +34,13 @@ export class ProductsController {
   @Get()
   @ApiOperation({ summary: 'List products with pagination, category filter and search' })
   findAll(
-    @Query('page', ParseIntPipe) page = 1,
-    @Query('limit', ParseIntPipe) limit = 10,
-    @Query('categoryId') categoryId?: string,
-    @Query('search') search?: string,
+    @Query() query: ProductQueryDto,
   ) {
     return this.productsService.findAll({
-      page,
-      limit,
-      categoryId: categoryId ? Number(categoryId) : undefined,
-      search,
+      page: query.page,
+      limit: query.limit,
+      categoryId: query.categoryId ? Number(query.categoryId) : undefined,
+      search: query.search,
     });
   }
 
@@ -84,13 +84,17 @@ export class ProductsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-          return cb(new BadRequestException('Only image files are allowed'), false);
+        if (file.mimetype === 'image/svg+xml' || file.originalname.toLowerCase().endsWith('.svg')) {
+          return cb(new BadRequestException('SVG files are not allowed'), false);
         }
         cb(null, true);
       },
@@ -105,6 +109,19 @@ export class ProductsController {
       throw new BadRequestException('Image file is required');
     }
 
+    const detectedFileType = fileType(file.buffer);
+    const allowedImageTypes = new Set(['jpg', 'png', 'webp']);
+    const isSvg = /<svg[\s>]/i.test(file.buffer.subarray(0, 1024).toString('utf8'));
+
+    if (isSvg) {
+      throw new BadRequestException('SVG files are not allowed');
+    }
+
+    if (!detectedFileType || !allowedImageTypes.has(detectedFileType.ext)) {
+      throw new BadRequestException('Only valid JPG, PNG or WEBP images are allowed');
+    }
+
+    file.mimetype = detectedFileType.mime;
     return this.productsService.uploadImage(id, file);
   }
 }

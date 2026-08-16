@@ -9,6 +9,7 @@ export type CartItem = {
 };
 
 const CART_KEY = 'ecommerce_cart';
+export const CART_UPDATED_EVENT = 'ecommerce-cart-updated';
 
 export function getCart(): CartItem[] {
   if (typeof window === 'undefined') return [];
@@ -23,6 +24,7 @@ export function getCart(): CartItem[] {
 export function saveCart(items: CartItem[]) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(CART_KEY, JSON.stringify(items));
+  window.dispatchEvent(new Event(CART_UPDATED_EVENT));
 }
 
 export function addToCart(item: CartItem) {
@@ -56,4 +58,20 @@ export function updateCartQuantity(productId: number, quantity: number) {
 export function clearCart() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(CART_KEY);
+  window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+}
+
+export function getCartItemQuantity(productId: number) {
+  return getCart()
+    .filter((item) => item.productId === productId)
+    .reduce((sum, item) => sum + item.quantity, 0);
+}
+
+export function getAvailableStock(productId: number, apiStock: number) {
+  const used = getCartItemQuantity(productId);
+  return Math.max(apiStock - used, 0);
+}
+
+export function getCartUnitsCount() {
+  return getCart().reduce((sum, item) => sum + item.quantity, 0);
 }

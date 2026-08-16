@@ -1,17 +1,20 @@
 import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AuthService {
-  private prisma = new PrismaClient();
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private jwtService: JwtService, private mailService: MailService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // REGISTRO
   async register(registerDto: RegisterDto) {

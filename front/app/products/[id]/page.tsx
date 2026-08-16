@@ -1,109 +1,77 @@
-'use client';
+import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
+import ProductDetailClient from '@/components/ProductDetailClient';
+import type { Product } from '@/lib/api';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import { getProduct, Product } from '@/lib/api';
-import { addToCart } from '@/lib/cart';
+type ProductRouteParams = {
+  id: string;
+};
 
-export default function ProductDetailPage() {
-  const params = useParams();
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type ProductPageProps = {
+  params: Promise<ProductRouteParams>;
+};
 
-  useEffect(() => {
-    async function load() {
-      if (!params?.id) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const detail = await getProduct(Number(params.id));
-        setProduct(detail);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    }
+async function getBaseUrl() {
+  const hdrs = await headers();
+  const host = hdrs.get('host');
+  const protocol = hdrs.get('x-forwarded-proto') ?? 'http';
 
-    load();
-  }, [params]);
-
-  if (loading) {
-    return (
-      <div>
-        <Navbar />
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="rounded-3xl bg-slate-50 p-10 text-center text-slate-600 shadow-sm">Cargando producto...</div>
-        </main>
-      </div>
-    );
+  if (!host) {
+    return process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001';
   }
 
-  if (error || !product) {
-    return (
-      <div>
-        <Navbar />
-        <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="rounded-3xl bg-rose-50 p-10 text-center text-rose-700 shadow-sm">{error || 'Producto no encontrado'}</div>
-        </main>
-      </div>
-    );
+  return `${protocol}://${host}`;
+}
+
+async function fetchProductById(id: string): Promise<Product | null> {
+  const numericId = Number(id);
+
+  if (!Number.isInteger(numericId) || numericId <= 0) {
+    return null;
   }
 
-  return (
-    <div>
-      <Navbar />
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="rounded-3xl bg-white p-8 shadow-sm">
-            <div className="mb-8 h-[420px] overflow-hidden rounded-3xl bg-slate-100">
-              {product.imageUrl ? (
-                <img className="h-full w-full object-cover" src={product.imageUrl} alt={product.name} />
-              ) : (
-                <div className="flex h-full items-center justify-center text-slate-400">Sin imagen</div>
-              )}
-            </div>
-            <h1 className="text-4xl font-semibold text-slate-900">{product.name}</h1>
-            <p className="mt-4 text-slate-600">{product.description}</p>
-          </div>
+  const baseUrl = await getBaseUrl();
 
-          <aside className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="space-y-6">
-              <div>
-                <p className="text-sm text-slate-500">Categoría</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{product.category.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Precio</p>
-                <p className="mt-1 text-3xl font-semibold text-slate-900">${Number(product.price).toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Stock disponible</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{product.stock}</p>
-              </div>
-              <button
-                onClick={() =>
-                  addToCart({
-                    productId: product.id,
-                    name: product.name,
-                    price: Number(product.price),
-                    quantity: 1,
-                    stock: product.stock,
-                    imageUrl: product.imageUrl,
-                    categoryName: product.category.name,
-                  })
-                }
-                className="w-full rounded-2xl bg-slate-900 px-5 py-3 text-white transition hover:bg-slate-700"
-                disabled={product.stock === 0}
-              >
-                {product.stock === 0 ? 'Agotado' : 'Agregar al carrito'}
-              </button>
-            </div>
-          </aside>
-        </div>
-      </main>
-    </div>
-  );
+  const res = await fetch(`${baseUrl}/api/products/${numericId}`, {
+    cache: 'no-store',
+  });
+
+  if (res.status === 404) {
+    return null;
+  }
+
+  if (!res.ok) {
+    throw new Error('No se pudo cargar el producto');
+  }
+
+  return res.json();
+}
+
+export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const product = await fetchProductById(id);
+
+  if (!product) {
+    return {
+      title: 'Producto no encontrado | Jamby',
+      description: 'El producto que buscabas no está disponible en Jamby.',
+    };
+  }
+
+  return {
+    title: `${product.name} | Jamby`,
+    description: product.description,
+  };
+}
+
+export default async function ProductDetailPage({ params }: ProductPageProps) {
+  const { id } = await params;
+  const product = await fetchProductById(id);
+
+  if (!product) {
+    notFound();
+  }
+
+  return <ProductDetailClient product={product} />;
 }

@@ -2,65 +2,99 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getCart } from '@/lib/cart';
+import { CART_UPDATED_EVENT, getCartUnitsCount } from '@/lib/cart';
+import { SESSION_UPDATED_EVENT, clearSession, getSessionEmail, getSessionRole, getSessionToken } from '@/lib/session';
 
 export default function Navbar() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
-    const token = localStorage.getItem('ecommerce_token');
-    const email = localStorage.getItem('ecommerce_user_email');
-    if (token && email) {
-      setUserEmail(email);
-    }
-    setCartCount(getCart().reduce((sum, item) => sum + item.quantity, 0));
+    const syncUser = () => {
+      const token = getSessionToken();
+      const email = getSessionEmail();
+      setUserEmail(token && email ? email : null);
+      setIsAdmin(token !== null && getSessionRole() === 'ADMIN');
+    };
+
+    const syncCartCount = () => {
+      setCartCount(getCartUnitsCount());
+    };
+
+    syncUser();
+    syncCartCount();
+
     function handleStorage() {
-      setCartCount(getCart().reduce((sum, item) => sum + item.quantity, 0));
+      syncUser();
+      syncCartCount();
+    }
+
+    function handleCartUpdated() {
+      syncCartCount();
+    }
+
+    function handleSessionUpdated() {
+      syncUser();
     }
 
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+    window.addEventListener(SESSION_UPDATED_EVENT, handleSessionUpdated);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener(CART_UPDATED_EVENT, handleCartUpdated);
+      window.removeEventListener(SESSION_UPDATED_EVENT, handleSessionUpdated);
+    };
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem('ecommerce_token');
-    localStorage.removeItem('ecommerce_user_email');
-    setUserEmail(null);
+    clearSession();
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <Link href="/" className="text-xl font-semibold text-slate-900">
-          Ecommerce UI
-        </Link>
+    <header className="sticky top-0 z-40 border-b-2 border-line bg-paper/95 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-3 text-2xl text-ink">
+            <span className="font-display text-4xl tracking-[0.08em]">Jamby</span>
+          </Link>
 
-        <nav className="flex items-center gap-4 text-sm text-slate-600">
-          <Link className="hover:text-slate-900" href="/">
+          <div className="hidden border border-line bg-paper-soft px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted md:block">
+            Urban sneaker drops
+          </div>
+        </div>
+
+        <nav className="flex flex-wrap items-center gap-2 border border-line bg-paper-soft p-2 text-sm text-muted shadow-editorial">
+          <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/">
             Productos
           </Link>
-          <Link className="hover:text-slate-900" href="/cart">
+          <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/cart">
             Carrito
             {cartCount > 0 ? (
-              <span className="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-slate-900 px-2 text-xs font-semibold text-white">
+              <span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center border border-[#0b0d0f] bg-terracotta px-2 text-xs font-semibold text-[#0b0d0f]">
                 {cartCount}
               </span>
             ) : null}
           </Link>
-          <Link className="hover:text-slate-900" href="/orders">
+          <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/orders">
             Pedidos
           </Link>
-          <Link className="hover:text-slate-900" href="/login">
+          {isAdmin ? (
+            <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/admin/orders">
+              Admin
+            </Link>
+          ) : null}
+          <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/login">
             Login
           </Link>
-          <Link className="hover:text-slate-900" href="/register">
+          <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/register">
             Registro
           </Link>
           {userEmail ? (
             <button
               onClick={handleLogout}
-              className="rounded-md bg-slate-900 px-3 py-2 text-white transition hover:bg-slate-700"
+              className="ml-auto border border-[#0b0d0f] bg-terracotta px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-[#0b0d0f] transition hover:brightness-95"
             >
               Salir
             </button>

@@ -1,6 +1,6 @@
-# API Ecommerce
+# Jamby
 
-Proyecto dividido en dos carpetas:
+Tienda editorial de zapatillas dividida en dos carpetas:
 
 - `back/`: backend NestJS + Prisma.
 - `front/`: frontend Next.js.
@@ -35,6 +35,8 @@ cd back
 npm run start:dev
 ```
 
+El backend escucha en `http://localhost:3000`.
+
 ### Pruebas
 
 ```bash
@@ -59,6 +61,8 @@ npm install
 cd front
 npm run dev
 ```
+
+El frontend escucha en `http://localhost:3001`.
 
 La configuración de `front/next.config.mjs` reescribe `/api/:path*` a `http://localhost:3000/:path*`, por lo que el frontend llama al backend local.
 

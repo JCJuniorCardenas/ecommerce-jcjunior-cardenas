@@ -1,11 +1,67 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+
+const validTransitions: Record<OrderStatus, OrderStatus[]> = {
+  [OrderStatus.PENDING]: [OrderStatus.PROCESSING, OrderStatus.CANCELED],
+  [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELED],
+  [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
+  [OrderStatus.DELIVERED]: [],
+  [OrderStatus.CANCELED]: [],
+};
 
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  @Cron(CronExpression.EVERY_10_SECONDS)
+  async cancelExpiredPendingOrders() {
+    const timeoutSeconds = Number(process.env.ORDER_PENDING_TIMEOUT_SECONDS ?? 30);
+
+    if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+      console.error('[orders] ORDER_PENDING_TIMEOUT_SECONDS debe ser un número mayor que 0');
+      return { canceledCount: 0 };
+    }
+
+    const expirationDate = new Date(Date.now() - timeoutSeconds * 1000);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const expiredOrders = await tx.order.findMany({
+        where: {
+          status: 'PENDING',
+          createdAt: { lt: expirationDate },
+        },
+        include: { items: true },
+      });
+
+      for (const order of expiredOrders) {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: 'CANCELED' },
+        });
+      }
+
+      return { canceledCount: expiredOrders.length };
+    });
+
+    if (result.canceledCount > 0) {
+      console.log('[orders] pedidos PENDING vencidos cancelados automáticamente', {
+        canceledCount: result.canceledCount,
+        timeoutSeconds,
+      });
+    }
+
+    return result;
+  }
 
   async create(user: any, createOrderDto: CreateOrderDto) {
     const productIds = createOrderDto.items.map((item) => item.productId);
@@ -91,6 +147,60 @@ export class OrdersService {
     return this.prisma.order.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          include: { product: true },
+        },
+      },
+    });
+  }
+
+  async confirmPayment(user: any, id: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      select: { id: true, userId: true, status: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (order.userId !== user.id) {
+      throw new ForbiddenException('You do not have access to this order');
+    }
+
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException('Esta orden ya no está pendiente de pago');
+    }
+
+    return this.updateStatus(id, OrderStatus.PROCESSING);
+  }
+
+  async updateStatus(id: number, nextStatus: OrderStatus) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (order.status === nextStatus) {
+      throw new BadRequestException(
+        `La orden ya se encuentra en estado ${order.status}`,
+      );
+    }
+
+    if (!validTransitions[order.status].includes(nextStatus)) {
+      throw new BadRequestException(
+        `No se puede pasar de ${order.status} a ${nextStatus} directamente`,
+      );
+    }
+
+    return this.prisma.order.update({
+      where: { id },
+      data: { status: nextStatus },
       include: {
         items: {
           include: { product: true },

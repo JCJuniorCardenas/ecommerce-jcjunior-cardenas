@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Category, Product, getCategories, getProducts } from '@/lib/api';
-import { addToCart } from '@/lib/cart';
+import {
+  addToCart,
+  CART_UPDATED_EVENT,
+  getCart,
+} from '@/lib/cart';
 import Navbar from '@/components/Navbar';
 import ProductCard from '@/components/ProductCard';
 
@@ -13,6 +17,8 @@ export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [cartSnapshot, setCartSnapshot] = useState(() => getCart());
+  const [stockErrors, setStockErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
     async function load() {
@@ -34,6 +40,20 @@ export default function HomePage() {
     load();
   }, []);
 
+  useEffect(() => {
+    const syncCart = () => {
+      setCartSnapshot(getCart());
+    };
+
+    syncCart();
+    window.addEventListener('storage', syncCart);
+    window.addEventListener(CART_UPDATED_EVENT, syncCart);
+    return () => {
+      window.removeEventListener('storage', syncCart);
+      window.removeEventListener(CART_UPDATED_EVENT, syncCart);
+    };
+  }, []);
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchesCategory = activeCategory ? product.category.id === activeCategory : true;
@@ -42,78 +62,129 @@ export default function HomePage() {
     });
   }, [products, activeCategory, search]);
 
+  const cartQuantitiesByProduct = useMemo(() => {
+    return cartSnapshot.reduce<Record<number, number>>((acc, item) => {
+      acc[item.productId] = (acc[item.productId] ?? 0) + item.quantity;
+      return acc;
+    }, {});
+  }, [cartSnapshot]);
+
+  const layoutClasses = [
+    'md:col-span-1',
+    'md:col-span-1',
+    'md:col-span-1',
+    'md:col-span-1',
+    'md:col-span-1',
+    'md:col-span-1',
+    'md:col-span-1',
+    'md:col-span-1',
+  ];
+
   return (
     <div>
       <Navbar />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="mb-8 rounded-3xl bg-white p-8 shadow-sm">
-          <h1 className="text-3xl font-semibold text-slate-900">Catálogo de productos</h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
-            Explora artículos, filtra por categoría y busca productos en tiempo real.
-          </p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <section className="grid gap-6 border-2 border-line bg-paper-soft p-6 shadow-editorial md:grid-cols-[1.2fr_0.8fr] lg:p-10">
+          <div className="space-y-5">
+            <p className="text-xs uppercase tracking-[0.35em] text-terracotta">Jamby urban streetwear</p>
+            <h1 className="max-w-2xl font-display text-6xl leading-[0.9] text-ink sm:text-7xl lg:text-8xl">
+              Sneakers que pisan fuerte en calle.
+            </h1>
+            <p className="max-w-xl text-base leading-7 text-muted sm:text-lg">
+              Siluetas urbanas, materiales listos para uso diario y drops pensados para combinar con ritmo real.
+            </p>
+          </div>
+
+          <div className="grid gap-4 self-end border border-line bg-panel p-5">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-muted">Piezas visibles</p>
+              <p className="mt-2 font-display text-5xl text-terracotta">{filteredProducts.length}</p>
+            </div>
+            <label className="block">
+              <span className="text-xs uppercase tracking-[0.3em] text-muted">Buscar</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Aero, Court, Trail..."
+                className="mt-2 w-full border border-line bg-paper px-4 py-3 text-ink outline-none transition placeholder:text-muted focus:border-terracotta"
+              />
+            </label>
+          </div>
+
+          <div className="col-span-full flex flex-wrap gap-3 border-t-2 border-line pt-3 text-sm">
             <button
               onClick={() => setActiveCategory(null)}
-              className={`rounded-2xl border px-4 py-3 text-left transition ${activeCategory === null ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-900'}`}
+              className={`border px-4 py-2 font-semibold uppercase tracking-[0.16em] transition ${activeCategory === null ? 'border-terracotta bg-terracotta text-[#0b0d0f]' : 'border-line bg-panel text-muted hover:border-terracotta hover:text-terracotta'}`}
             >
-              Todas las categorías
+              Todas
             </button>
             {categories.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setActiveCategory(category.id)}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${activeCategory === category.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-900'}`}
+                className={`border px-4 py-2 font-semibold uppercase tracking-[0.16em] transition ${activeCategory === category.id ? 'border-terracotta bg-terracotta text-[#0b0d0f]' : 'border-line bg-panel text-muted hover:border-terracotta hover:text-terracotta'}`}
               >
                 {category.name}
               </button>
             ))}
           </div>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <span className="text-sm font-medium text-slate-600">Productos encontrados:</span>
-              <span className="ml-2 text-lg font-semibold text-slate-900">{filteredProducts.length}</span>
-            </div>
-            <label className="block w-full sm:w-auto">
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar producto..."
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900 focus:bg-white sm:w-80"
-              />
-            </label>
-          </div>
         </section>
 
         {error ? (
-          <div className="rounded-3xl bg-rose-50 p-6 text-rose-700 shadow-sm">Error: {error}</div>
+          <div className="mt-6 border border-[#7a1e26] bg-[#2a1014] p-6 text-[#ff8b95] shadow-editorial">Error: {error}</div>
         ) : null}
 
         {loading ? (
-          <div className="rounded-3xl bg-slate-50 p-12 text-center text-slate-600 shadow-sm">Cargando productos...</div>
+          <div className="mt-6 border border-line bg-paper-soft p-12 text-center text-muted shadow-editorial">Cargando productos...</div>
         ) : (
-          <section className="grid gap-6 xl:grid-cols-3">
+          <section className="mt-8 grid gap-5 md:grid-cols-2">
             {filteredProducts.length ? (
               filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onAddToCart={() => {
-                    addToCart({
-                      productId: product.id,
-                      name: product.name,
-                      price: Number(product.price),
-                      quantity: 1,
-                      stock: product.stock,
-                      imageUrl: product.imageUrl,
-                      categoryName: product.category.name,
-                    });
-                  }}
-                />
+                (() => {
+                  const usedStock = cartQuantitiesByProduct[product.id] ?? 0;
+                  const availableStock = Math.max(product.stock - usedStock, 0);
+
+                  return (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      availableStock={availableStock}
+                      errorMessage={stockErrors[product.id]}
+                      layoutClassName={layoutClasses[(product.id - 1) % layoutClasses.length]}
+                      onAddToCart={() => {
+                        if (availableStock <= 0) {
+                          setStockErrors((current) => ({
+                            ...current,
+                            [product.id]: 'No hay más stock disponible de este producto',
+                          }));
+                          return;
+                        }
+
+                        addToCart({
+                          productId: product.id,
+                          name: product.name,
+                          price: Number(product.price),
+                          quantity: 1,
+                          stock: product.stock,
+                          imageUrl: product.imageUrl,
+                          categoryName: product.category.name,
+                        });
+
+                        if (stockErrors[product.id]) {
+                          setStockErrors((current) => {
+                            const copy = { ...current };
+                            delete copy[product.id];
+                            return copy;
+                          });
+                        }
+                      }}
+                    />
+                  );
+                })()
               ))
             ) : (
-              <div className="rounded-3xl bg-slate-50 p-12 text-center text-slate-600 shadow-sm">
+              <div className="col-span-full border border-line bg-paper-soft p-12 text-center text-muted">
                 No se encontraron productos.
               </div>
             )}
