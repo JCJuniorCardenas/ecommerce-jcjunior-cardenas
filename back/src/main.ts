@@ -7,9 +7,10 @@ import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = ['http://localhost:3001'];
-  // Ejemplo para deploy futuro en Vercel:
-  // 'https://tu-app.vercel.app',
+ const allowedOrigins = [
+  'http://localhost:3001',
+  'https://ecommerce-jcjunior-cardenas.vercel.app',
+];
 
   app.enableCors({
     origin: allowedOrigins,
