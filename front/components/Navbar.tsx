@@ -81,9 +81,14 @@ export default function Navbar() {
             Pedidos
           </Link>
           {isAdmin ? (
-            <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/admin/orders">
-              Admin
-            </Link>
+            <>
+              <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/admin/orders">
+                Admin Pedidos
+              </Link>
+              <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/admin/products">
+                Admin Productos
+              </Link>
+            </>
           ) : null}
           <Link className="border border-transparent px-4 py-2 font-semibold uppercase tracking-[0.2em] transition hover:border-terracotta hover:bg-terracotta hover:text-[#0b0d0f]" href="/login">
             Login

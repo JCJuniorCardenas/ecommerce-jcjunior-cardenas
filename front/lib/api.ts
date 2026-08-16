@@ -18,6 +18,14 @@ export type Product = {
   category: Category;
 };
 
+export type ProductPayload = {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  categoryId: number;
+};
+
 export async function getCategories(): Promise<Category[]> {
   const res = await fetch(`${API_BASE}/categories`);
   if (!res.ok) throw new Error('Error cargando categorías');
@@ -49,6 +57,50 @@ export async function getProduct(id: number): Promise<Product> {
     error.status = res.status;
     throw error;
   }
+  return res.json();
+}
+
+export async function createProduct(payload: ProductPayload): Promise<Product> {
+  const res = await fetchWithAuth('/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await extractBackendMessage(res));
+  }
+
+  return res.json();
+}
+
+export async function updateProduct(id: number, payload: Partial<ProductPayload>): Promise<Product> {
+  const res = await fetchWithAuth(`/products/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(await extractBackendMessage(res));
+  }
+
+  return res.json();
+}
+
+export async function uploadProductImage(id: number, file: File): Promise<Product> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetchWithAuth(`/products/${id}/image`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error(await extractBackendMessage(res));
+  }
+
   return res.json();
 }
 
